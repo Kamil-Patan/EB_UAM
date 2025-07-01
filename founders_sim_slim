@@ -1,0 +1,82 @@
+initialize() {
+    defineGlobal("N", 10000);
+    defineGlobal("MU", 3.78e-8);
+    defineGlobal("R", 3e-8);
+    initializeMutationRate(MU);
+
+
+    // Plik wejsciowy GFF3
+	coord_file = readFile("ncgff_bed1.txt");
+if (isNULL(coord_file)) {
+    cat("Plik jest NULL!\n");
+    stop();
+}
+
+    defineConstant("del_selCoef_mean", -0.014); // Gamma - normalna selekcja
+    defineConstant("del_selCoef_sd", 0.186); // Gamma - standardowe odchylenie
+
+    // Typ mutacji: neutralna
+    initializeMutationType("m1", 0.5, "f", 0.0);
+    // Typ mutacji: deleterious
+    initializeMutationType("m2", 0.5, "g", asFloat(del_selCoef_mean), asFloat(del_selCoef_sd));
+
+    // Typ elementów genomowych: exon i intron
+	initializeGenomicElementType("g1", c(m1, m2), c(0.8, 0.2));  // exon: 20% szkodliwe
+	initializeGenomicElementType("g2", c(m1, m2), c(0.95, 0.05)); // intron: 5% szkodliwe
+	initializeGenomicElementType("g3", m1, 1);  // nc-region	
+
+    initializeRecombinationRate(R);
+
+    // Inicjalizacja genomu na podstawie pliku GFF3
+    for (coord_line in coord_file) {
+        ROW = strsplit(coord_line, "\t");
+        feature = ROW[0];
+        if (feature == "exon") {
+            initializeGenomicElement(g1, asInteger(ROW[1]), asInteger(ROW[2]));
+        }
+        if (feature == "intron") {
+            initializeGenomicElement(g2, asInteger(ROW[1]), asInteger(ROW[2]));
+        }
+        if (feature == "nc") {
+        		initializeGenomicElement(g3, asInteger(ROW[1]), asInteger(ROW[2]));
+        }
+    }
+}
+
+1 early() {
+    sim.addSubpop("p1", N);
+}
+
+1:100000 late() {
+    if (sim.cycle % 2000 == 0) {
+        heterozygosity = calcHeterozygosity(p1.genomes);
+        writeFile("heterozygosity_final.txt", sim.cycle + "\t" + heterozygosity + "\n", append=T);
+    }
+
+    if (sim.cycle == 100000) {
+        heterozygosity = calcHeterozygosity(p1.genomes);
+        cat("Mean heterozygosity = " + heterozygosity + "\n");
+
+        // Losowa próba genomów i zapis pliku VCF
+        sample1 = sample(p1.genomes, 100);
+        sample1.outputVCF(filePath = "simulation_output_final.vcf");
+
+        // Zapis mutacji do pliku tekstowego
+        muts = sim.mutations;
+        writeFile("mutations_output_final.txt", "ID\tPosition\tType\tSelectionCoeff\n"); // naglówek
+
+        for (mut in muts) {
+            id = mut.id;
+            pos = mut.position;
+            selcoef = mut.selectionCoeff;
+
+            mtype = "unknown";
+            if (mut.mutationType == m1)
+                mtype = "m1";
+            else if (mut.mutationType == m2)
+                mtype = "m2";
+
+            writeFile("mutations_output_final.txt", id + "\t" + pos + "\t" + mtype + "\t" + selcoef + "\n", append=T);
+        }
+    }
+}
