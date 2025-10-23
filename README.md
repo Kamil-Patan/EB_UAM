@@ -1,4 +1,4 @@
-# EB_UAM
+# pedGenomeSim 
 
 Computational tools for analyzing the genetic dynamics of endangered species using pedigree and genomic data.  
 This repository contains Python, R, and SLiM scripts used in population genetics simulations and post-processing of results for the European bison (*Bison bonasus*).
